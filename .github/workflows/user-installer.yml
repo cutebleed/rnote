@@ -1,0 +1,75 @@
+---
+
+name: Per-user installer 0.14.2
+
+"on":
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Install Inno 6
+        shell: pwsh
+        run: |
+          if (Test-Path "C:\Program Files (x86)\Inno Setup 6\") {
+            echo "inno already installed"
+          } else {
+            winget install -e --id JRSoftware.InnoSetup -v 6.4.3 --accept-package-agreements `
+              --accept-source-agreements --disable-interactivity --scope machine
+            if (Test-Path "C:\Program Files (x86)\Inno Setup 6\") {
+              echo "inno installed successfully"
+            } else {
+              throw "could not find inno's installation folder"
+            }
+          }
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          release: false
+          update: true
+          install: |
+            mingw-w64-x86_64-binutils
+
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable-gnu
+
+      - name: Configure PATH
+        run: echo "export PATH=$PATH:/c/Users/$USER/.cargo/bin:/c/Program\ Files\ \(x86\)/Inno\ Setup\ 6" > ~/.bashrc
+
+      - name: Checkout v0.14.2
+        uses: actions/checkout@v4
+        with:
+          ref: v0.14.2
+
+      - name: Switch installer to per-user mode
+        run: |
+          sed -i 's/^;PrivilegesRequired=lowest/PrivilegesRequired=lowest/' build-aux/rnote_inno.iss.in
+          grep -n '^PrivilegesRequired=lowest' build-aux/rnote_inno.iss.in
+
+      - name: Prerequisites
+        run: |
+          cargo install --locked just
+          just ci=true prerequisites-win
+
+      - name: Setup
+        run: just ci=true setup-win-installer 'rnote-win-installer-0.14.2-user-x86_64'
+
+      - name: Build
+        run: just ci=true build
+
+      - name: Build installer
+        run: just ci=true build-win-installer
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: rnote-win-installer-0.14.2-user
+          path: _mesonbuild/rnote-win-installer-0.14.2-user-x86_64.exe
+          if-no-files-found: error
