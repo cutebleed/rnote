@@ -52,6 +52,9 @@ jobs:
         run: |
           sed -i 's/^;PrivilegesRequired=lowest/PrivilegesRequired=lowest/' build-aux/rnote_inno.iss.in
           grep -n '^PrivilegesRequired=lowest' build-aux/rnote_inno.iss.in
+          # MSYS2 removed these two mingw64 packages after 0.14.2; both are optional for the build
+          sed -i 's/ mingw-w64-x86_64-diffutils mingw-w64-x86_64-desktop-file-utils//' justfile
+          ! grep -nE 'mingw-w64-x86_64-(diffutils|desktop-file-utils)' justfile
 
       - name: Prerequisites
         run: |
